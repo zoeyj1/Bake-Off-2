@@ -1,6 +1,18 @@
 import java.util.ArrayList;
 import java.util.Collections;
 
+
+// Booleans to turn features on and off with true and false
+
+//Professor Harrison's original features:
+boolean originalDirectionButtons = false;
+
+//Our Own New Features
+boolean followingMouse = true;
+boolean blueSelectionBorder = true;
+boolean blueResizingSquares = true;
+boolean centerConnection = true;
+
 int trialCount = 10; //this will be set higher for the bakeoff
 final float screenPPI = 126; //what is the Pixels Per Inch of the screen you are using 
 
@@ -113,57 +125,114 @@ void draw() {
   fill(255);
   textFont(largeFont);
   scaffoldControlLogic(); //you are going to want to replace this!
+  fill(255);
   text("Trial " + (trialIndex+1) + " of " +trialCount, width/2, inchToPix(.8f));
 }
 
 //my example design for control, which is a terrible design
 void scaffoldControlLogic()
 {
-  //upper left corner, rotate counterclockwise
-  text("CCW", inchToPix(.4f), inchToPix(.4f));
-  if (mousePressed && dist(0, 0, mouseX, mouseY)<inchToPix(.8f))
-    logoR--;
-
-  //upper right corner, rotate clockwise
-  text("CW", width-inchToPix(.4f), inchToPix(.4f));
-  if (mousePressed && dist(width, 0, mouseX, mouseY)<inchToPix(.8f))
-    logoR++;
-
-  //lower left corner, decrease Z
-  text("-", inchToPix(.4f), height-inchToPix(.4f));
-  if (mousePressed && dist(0, height, mouseX, mouseY)<inchToPix(.8f))
-    logoS = constrain(logoS-inchToPix(.02f), inchToPix(0.25f), inchToPix(4f)); //leave min and max alone!
-
-  //lower right corner, increase Z
-  text("+", width-inchToPix(.4f), height-inchToPix(.4f));
-  if (mousePressed && dist(width, height, mouseX, mouseY)<inchToPix(.8f))
-    logoS = constrain(logoS+inchToPix(.02f), inchToPix(0.25f), inchToPix(4f)); //leave min and max alone! 
-
-  //left middle, move left
-  text("left", inchToPix(.4f), height/2);
-  if (mousePressed && dist(0, height/2, mouseX, mouseY)<inchToPix(.8f))
-    logoX-=inchToPix(.02f);
-
-  text("right", width-inchToPix(.4f), height/2);
-  if (mousePressed && dist(width, height/2, mouseX, mouseY)<inchToPix(.8f))
-    logoX+=inchToPix(.02f);
-
-  text("up", width/2, inchToPix(.4f));
-  if (mousePressed && dist(width/2, 0, mouseX, mouseY)<inchToPix(.8f))
-    logoY-=inchToPix(.02f);
-
-  text("down", width/2, height-inchToPix(.4f));
-  if (mousePressed && dist(width/2, height, mouseX, mouseY)<inchToPix(.8f))
-    logoY+=inchToPix(.02f);
+  Destination d = destinations.get(trialIndex);
+  if (blueSelectionBorder) {
+    stroke(77, 119, 255);
+    strokeWeight(3);
+    line(logoX-logoS/2, logoY-logoS/2, logoX+logoS/2, logoY-logoS/2);
+    line(logoX-logoS/2, logoY-logoS/2, logoX-logoS/2, logoY+logoS/2);
+    line(logoX+logoS/2, logoY+logoS/2, logoX-logoS/2, logoY+logoS/2);
+    line(logoX+logoS/2, logoY+logoS/2, logoX+logoS/2, logoY-logoS/2);
+  }
+  
+  if (blueSelectionBorder == false && blueResizingSquares) {
+    fill(77, 119, 255);
+    float topRightX = logoX+logoS/2+1;
+    float topRightY = logoY-logoS/2+1;
+    rect(logoX+logoS/2, logoY-logoS/2, 8, 8);
+    rect(logoX-logoS/2, logoY-logoS/2, 8, 8);
+    rect(logoX+logoS/2, logoY+logoS/2, 8, 9);
+    rect(logoX-logoS/2, logoY+logoS/2, 8, 8);
+    
+    if (mousePressed && dist(mouseX, mouseY, logoX+logoS/2+1, logoY-logoS/2+1) < 30) {
+      float centerX = logoX;
+      float centerY = logoY;
+      
+      float newSize = dist(mouseX, mouseY, centerX, centerY) * sqrt(2);
+      
+      logoS = newSize;
+    }  
+  }
+  
+  if (followingMouse && blueSelectionBorder == true) {
+    logoX = mouseX;
+    logoY = mouseY;
+  }
+  
+  if (centerConnection) {
+    stroke(100);
+    line(logoX, logoY, d.x, d.y);
+  }
+  
+  if (originalDirectionButtons) {
+    //upper left corner, rotate counterclockwise
+    text("CCW", inchToPix(.4f), inchToPix(.4f));
+    if (mousePressed && dist(0, 0, mouseX, mouseY)<inchToPix(.8f))
+      logoR--;
+  
+    //upper right corner, rotate clockwise
+    text("CW", width-inchToPix(.4f), inchToPix(.4f));
+    if (mousePressed && dist(width, 0, mouseX, mouseY)<inchToPix(.8f))
+      logoR++;
+  
+    //lower left corner, decrease Z
+    text("-", inchToPix(.4f), height-inchToPix(.4f));
+    if (mousePressed && dist(0, height, mouseX, mouseY)<inchToPix(.8f))
+      logoS = constrain(logoS-inchToPix(.02f), inchToPix(0.25f), inchToPix(4f)); //leave min and max alone!
+  
+    //lower right corner, increase Z
+    text("+", width-inchToPix(.4f), height-inchToPix(.4f));
+    if (mousePressed && dist(width, height, mouseX, mouseY)<inchToPix(.8f))
+      logoS = constrain(logoS+inchToPix(.02f), inchToPix(0.25f), inchToPix(4f)); //leave min and max alone! 
+  
+    //left middle, move left
+    text("left", inchToPix(.4f), height/2);
+    if (mousePressed && dist(0, height/2, mouseX, mouseY)<inchToPix(.8f))
+      logoX-=inchToPix(.02f);
+  
+    text("right", width-inchToPix(.4f), height/2);
+    if (mousePressed && dist(width, height/2, mouseX, mouseY)<inchToPix(.8f))
+      logoX+=inchToPix(.02f);
+  
+    text("up", width/2, inchToPix(.4f));
+    if (mousePressed && dist(width/2, 0, mouseX, mouseY)<inchToPix(.8f))
+      logoY-=inchToPix(.02f);
+  
+    text("down", width/2, height-inchToPix(.4f));
+    if (mousePressed && dist(width/2, height, mouseX, mouseY)<inchToPix(.8f))
+      logoY+=inchToPix(.02f);
+  }
 }
 
 void mousePressed()
 {
+  Destination d = destinations.get(trialIndex);
   if (startTime == 0) //start time on the instant of the first user click
   {
     startTime = millis();
     println("time started!");
   }
+  
+  if (blueSelectionBorder == true) {
+    if (d.x-d.s/2+4 < mouseX && mouseX < d.x+d.s/2-4 
+      && d.y-d.s/2 < mouseY && mouseY < d.y+d.s/2) // we are clicking in bounds of destination sq
+    {
+      blueSelectionBorder = false;
+    }
+  } else {
+    if (logoX-logoS/2+3 < mouseX && mouseX < logoX+logoS/2-3 
+        && logoY-logoS/2+3 < mouseY && mouseY < logoY+logoS/2-3) {
+      blueSelectionBorder = true;
+    }
+  }
+  
 }
 
 void mouseReleased()
