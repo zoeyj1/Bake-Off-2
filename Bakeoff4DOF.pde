@@ -5,18 +5,18 @@ import java.util.Collections;
 // Booleans to turn features on and off with true and false
 
 //Professor Harrison's original features:
-boolean originalDirectionButtons = true;
-boolean originalSubmit = true;
+boolean originalDirectionButtons = false;
+boolean originalSubmit = false;
 
 
 //Our Own New Features
-boolean followingMouse = false;
-boolean blueSelectionBorder = false;
-boolean blueResizingSquares = false;
+boolean followingMouse = true;
+boolean blueSelectionBorder = true;
+boolean blueResizingSquares = true;
 boolean pointToDestination = false;
-boolean greenSuccessVisual = false;
-boolean submitWhenCorrect = false;
-boolean isDragging = false;
+boolean greenSuccessVisual = true;
+boolean submitWhenCorrect = true;
+boolean isDragging = true;
 int draggingCorner = -1;
 
 int trialCount = 10; //this will be set higher for the bakeoff
