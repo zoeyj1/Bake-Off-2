@@ -12,8 +12,10 @@ boolean followingMouse = false;
 boolean blueSelectionBorder = false;
 boolean blueResizingSquares = false;
 boolean centerConnection = false;
-boolean coordinateGridControl = true;
+boolean scrollWheelControl = true;
 boolean resetSquareAfterSubmission = true;
+boolean doubleClickToContinue = true;
+
 
 int trialCount = 10; //this will be set higher for the bakeoff
 final float screenPPI = 126;//what is the Pixels Per Inch of the screen you are using
@@ -40,18 +42,17 @@ float originalLogoY = 500;
 float originalLogoS = 50f;
 float originalLogoR = 0;
 
-// Two square pads stacked vertically
-float padSize = 250;
-float pad1X = 20;
-float pad1Y = 10;
-float pad2X = 20;
-float pad2Y = 270;
+// Single pad that switches between XY and ZR
+float padSize = 700;
+float padX = 20;
+float padY = 10;
 
-// Submit button dimensions
-float submitButtonWidth = 130;
-float submitButtonHeight = 80;
-float submitButtonX;
-float submitButtonY;
+// Which phase: 0 = setting X/Y, 1 = setting Z/R
+int padPhase = 0;
+
+// Double-click detection
+int lastClickTime = 0;
+int doubleClickThreshold = 400; // ms between clicks to count as double
 
 // Min and max values for each axis
 float minX, maxX, minY, maxY;
@@ -59,6 +60,9 @@ float minZ = inchToPix(0.25f);
 float maxZ = inchToPix(4f);
 float minR = 0;
 float maxR = 360;
+
+// Inner padding inside the pad so targets/cursor cannot land on edges
+float padInnerPadding = 18;
 
 PFont smallFont;
 PFont largeFont;
@@ -92,10 +96,6 @@ void setup() {
   maxX = width - windowPadding;
   minY = windowPadding;
   maxY = height - windowPadding;
-
-  // Submit button to the right, vertically centered between two pads
-  submitButtonX = pad1X + padSize + 20;
-  submitButtonY = pad1Y + (pad2Y + padSize - pad1Y) / 2 - submitButtonHeight / 2;
 
   //create a bunch of random destination squares. Don't change this!
   for (int i=0; i<trialCount; i++)
@@ -262,144 +262,174 @@ void scaffoldControlLogic()
       logoY+=inchToPix(.02f);
   }
 
-  // Draw the two 2D pads
-  if (coordinateGridControl) {
-    drawPads();
+  // Draw the pad
+  if (scrollWheelControl) {
+    drawPad();
   }
 }
 
-void drawPads() {
+void drawPad() {
   Destination d = destinations.get(trialIndex);
   rectMode(CORNER);
 
-  // Check closeness for each axis
-  boolean xClose = abs(logoX - d.x) < inchToPix(.05f);
-  boolean yClose = abs(logoY - d.y) < inchToPix(.05f);
-  boolean xyClose = xClose && yClose;
-  boolean zClose = abs(logoS - d.s) < inchToPix(.1f);
-  boolean rClose = calculateDifferenceBetweenAngles(logoR, d.r) <= 5;
-  boolean zrClose = zClose && rClose;
+  float usablePadSize = padSize - padInnerPadding * 2;
+  float leftEdge = padX + padInnerPadding;
+  float rightEdge = padX + padSize - padInnerPadding;
+  float topEdge = padY + padInnerPadding;
+  float bottomEdge = padY + padSize - padInnerPadding;
 
-  //Pad 1: X (horizontal) / Y (vertical)
+  // Pad background
   fill(55);
   noStroke();
-  rect(pad1X, pad1Y, padSize, padSize, 4);
+  rect(padX, padY, padSize, padSize, 4);
 
-  // Target position in pad coordinates
-  float targetPx1 = pad1X + padSize * ((d.x - minX) / (maxX - minX));
-  float targetPy1 = pad1Y + padSize * ((d.y - minY) / (maxY - minY));
+  if (padPhase == 0) {
+    // === X/Y MODE ===
+    // Use dist() to match checkForSuccess exactly
+    boolean xyClose = dist(d.x, d.y, logoX, logoY) < inchToPix(.05f);
+    color c = xyClose ? color(0, 255, 0) : color(255, 0, 0);
 
-  // Tolerance in pad pixels
-  float tolX = padSize * (inchToPix(.05f) / (maxX - minX));
-  float tolY = padSize * (inchToPix(.05f) / (maxY - minY));
+    float targetPx = leftEdge + usablePadSize * ((d.x - minX) / (maxX - minX));
+    float targetPy = topEdge + usablePadSize * ((d.y - minY) / (maxY - minY));
 
-  // Pick color based on closeness
-  color pad1Color = xyClose ? color(0, 255, 0) : color(255, 0, 0);
+    // === Shadow of next phase (Size / Rot) in gray ===
+    float shadowZR_Px = leftEdge + usablePadSize * ((d.s - minZ) / (maxZ - minZ));
+    float shadowZR_Py = topEdge + usablePadSize * ((d.r - minR) / (maxR - minR));
+    float shadowTolZ = usablePadSize * (inchToPix(.1f) / (maxZ - minZ));
+    float shadowTolR = usablePadSize * (5.0f / (maxR - minR));
 
-  // Guide lines
-  stroke(red(pad1Color), green(pad1Color), blue(pad1Color), 60);
-  strokeWeight(1);
-  line(pad1X, targetPy1, pad1X + padSize, targetPy1);
-  line(targetPx1, pad1Y, targetPx1, pad1Y + padSize);
+    stroke(180, 180, 180, 60);
+    strokeWeight(2);
+    line(leftEdge, shadowZR_Py, rightEdge, shadowZR_Py);
+    line(shadowZR_Px, topEdge, shadowZR_Px, bottomEdge);
 
-  // Tolerance zone fill
-  noStroke();
-  fill(red(pad1Color), green(pad1Color), blue(pad1Color), 40);
-  rect(targetPx1 - tolX, targetPy1 - tolY, tolX * 2, tolY * 2);
+    noStroke();
+    fill(180, 180, 180, 25);
+    rect(shadowZR_Px - shadowTolZ, shadowZR_Py - shadowTolR, shadowTolZ * 2, shadowTolR * 2);
 
-  // Tolerance zone border
-  stroke(red(pad1Color), green(pad1Color), blue(pad1Color), 150);
-  strokeWeight(2);
-  noFill();
-  rect(targetPx1 - tolX, targetPy1 - tolY, tolX * 2, tolY * 2);
+    stroke(180, 180, 180, 90);
+    strokeWeight(2);
+    noFill();
+    rect(shadowZR_Px - shadowTolZ, shadowZR_Py - shadowTolR, shadowTolZ * 2, shadowTolR * 2);
 
-  // Current position - blue with white ring
-  float curPx1 = pad1X + padSize * ((logoX - minX) / (maxX - minX));
-  float curPy1 = pad1Y + padSize * ((logoY - minY) / (maxY - minY));
-  noStroke();
-  fill(80, 80, 255);
-  ellipse(curPx1, curPy1, 12, 12);
-  stroke(255);
-  strokeWeight(2);
-  noFill();
-  ellipse(curPx1, curPy1, 12, 12);
+    // The tolerance is a circle of radius 0.05" in world space
+    // Draw it as a circle on the pad
+    float tolRadius = usablePadSize * (inchToPix(.05f) / (maxX - minX));
 
-  // Label
-  fill(100);
-  noStroke();
-  textFont(smallFont);
-  textAlign(RIGHT);
-  text("X / Y", pad1X + padSize - 4, pad1Y + 14);
+    // Guide lines
+    stroke(red(c), green(c), blue(c), 80);
+    strokeWeight(2);
+    line(leftEdge, targetPy, rightEdge, targetPy);
+    line(targetPx, topEdge, targetPx, bottomEdge);
 
-  //Pad 2: Size (horizontal) / Rotation (vertical)
-  fill(55);
-  noStroke();
-  rect(pad2X, pad2Y, padSize, padSize, 4);
+    // Tolerance zone as circle
+    noStroke();
+    fill(red(c), green(c), blue(c), 40);
+    ellipse(targetPx, targetPy, tolRadius * 2, tolRadius * 2);
+    stroke(red(c), green(c), blue(c), 180);
+    strokeWeight(3);
+    noFill();
+    ellipse(targetPx, targetPy, tolRadius * 2, tolRadius * 2);
 
-  // Target position in pad coordinates
-  float targetPx2 = pad2X + padSize * ((d.s - minZ) / (maxZ - minZ));
-  float targetPy2 = pad2Y + padSize * ((d.r - minR) / (maxR - minR));
+    // Current position
+    float curPx = leftEdge + usablePadSize * ((logoX - minX) / (maxX - minX));
+    float curPy = topEdge + usablePadSize * ((logoY - minY) / (maxY - minY));
+    noStroke();
+    fill(80, 80, 255);
+    ellipse(curPx, curPy, 14, 14);
+    stroke(255);
+    strokeWeight(2);
+    noFill();
+    ellipse(curPx, curPy, 14, 14);
 
-  // Tolerance in pad pixels
-  float tolZ = padSize * (inchToPix(.1f) / (maxZ - minZ));
-  float tolR = padSize * (5.0f / (maxR - minR));
+    // Label
+    fill(180);
+    noStroke();
+    textFont(mediumFont);
+    textAlign(RIGHT);
+    text("X / Y", padX + padSize - 6, padY + 20);
 
-  // Pick color based on closeness
-  color pad2Color = zrClose ? color(0, 255, 0) : color(255, 0, 0);
+    // Hint
+    fill(120);
+    textFont(smallFont);
+    textAlign(LEFT);
+    text("Double-click to confirm", padX, padY + padSize + 16);
 
-  // Guide lines
-  stroke(red(pad2Color), green(pad2Color), blue(pad2Color), 60);
-  strokeWeight(1);
-  line(pad2X, targetPy2, pad2X + padSize, targetPy2);
-  line(targetPx2, pad2Y, targetPx2, pad2Y + padSize);
-
-  // Tolerance zone fill
-  noStroke();
-  fill(red(pad2Color), green(pad2Color), blue(pad2Color), 40);
-  rect(targetPx2 - tolZ, targetPy2 - tolR, tolZ * 2, tolR * 2);
-
-  // Tolerance zone border
-  stroke(red(pad2Color), green(pad2Color), blue(pad2Color), 150);
-  strokeWeight(2);
-  noFill();
-  rect(targetPx2 - tolZ, targetPy2 - tolR, tolZ * 2, tolR * 2);
-
-  // Current position
-  float curPx2 = pad2X + padSize * ((logoS - minZ) / (maxZ - minZ));
-  float curPy2 = pad2Y + padSize * ((logoR - minR) / (maxR - minR));
-  noStroke();
-  fill(80, 80, 255);
-  ellipse(curPx2, curPy2, 12, 12);
-  stroke(255);
-  strokeWeight(2);
-  noFill();
-  ellipse(curPx2, curPy2, 12, 12);
-
-  // Label
-  fill(100);
-  noStroke();
-  textFont(smallFont);
-  textAlign(RIGHT);
-  text("Size / Rot", pad2X + padSize - 4, pad2Y + 14);
-
-  //Submit Button
-  boolean ready = isReadyToSubmit();
-  boolean hovering = mouseX >= submitButtonX && mouseX <= submitButtonX + submitButtonWidth &&
-    mouseY >= submitButtonY && mouseY <= submitButtonY + submitButtonHeight;
-
-  if (ready) {
-    fill(hovering ? color(0, 255, 0, 220) : color(0, 200, 0, 200));
   } else {
-    fill(hovering ? color(255, 0, 0, 220) : color(200, 0, 0, 200));
+    // === Z/R MODE ===
+    boolean zClose = abs(logoS - d.s) < inchToPix(.1f);
+    boolean rClose = calculateDifferenceBetweenAngles(logoR, d.r) <= 5;
+    boolean bothClose = zClose && rClose;
+    color c = bothClose ? color(0, 255, 0) : color(255, 0, 0);
+
+    float targetPx = leftEdge + usablePadSize * ((d.s - minZ) / (maxZ - minZ));
+    float targetPy = topEdge + usablePadSize * ((d.r - minR) / (maxR - minR));
+
+    // === Shadow of next iteration's (X / Y) in gray ===
+    if (trialIndex + 1 < trialCount) {
+      Destination nextD = destinations.get(trialIndex + 1);
+
+      float shadowXY_Px = leftEdge + usablePadSize * ((nextD.x - minX) / (maxX - minX));
+      float shadowXY_Py = topEdge + usablePadSize * ((nextD.y - minY) / (maxY - minY));
+      float shadowTolRadius = usablePadSize * (inchToPix(.05f) / (maxX - minX));
+
+      stroke(180, 180, 180, 60);
+      strokeWeight(2);
+      line(leftEdge, shadowXY_Py, rightEdge, shadowXY_Py);
+      line(shadowXY_Px, topEdge, shadowXY_Px, bottomEdge);
+
+      noStroke();
+      fill(180, 180, 180, 25);
+      ellipse(shadowXY_Px, shadowXY_Py, shadowTolRadius * 2, shadowTolRadius * 2);
+
+      stroke(180, 180, 180, 90);
+      strokeWeight(2);
+      noFill();
+      ellipse(shadowXY_Px, shadowXY_Py, shadowTolRadius * 2, shadowTolRadius * 2);
+    }
+
+    float tolZ = usablePadSize * (inchToPix(.1f) / (maxZ - minZ));
+    float tolR = usablePadSize * (5.0f / (maxR - minR));
+
+    // Guide lines
+    stroke(red(c), green(c), blue(c), 80);
+    strokeWeight(2);
+    line(leftEdge, targetPy, rightEdge, targetPy);
+    line(targetPx, topEdge, targetPx, bottomEdge);
+
+    // Tolerance zone
+    noStroke();
+    fill(red(c), green(c), blue(c), 40);
+    rect(targetPx - tolZ, targetPy - tolR, tolZ * 2, tolR * 2);
+    stroke(red(c), green(c), blue(c), 180);
+    strokeWeight(3);
+    noFill();
+    rect(targetPx - tolZ, targetPy - tolR, tolZ * 2, tolR * 2);
+
+    // Current position
+    float curPx = leftEdge + usablePadSize * ((logoS - minZ) / (maxZ - minZ));
+    float curPy = topEdge + usablePadSize * ((logoR - minR) / (maxR - minR));
+    noStroke();
+    fill(80, 80, 255);
+    ellipse(curPx, curPy, 14, 14);
+    stroke(255);
+    strokeWeight(2);
+    noFill();
+    ellipse(curPx, curPy, 14, 14);
+
+    // Label
+    fill(180);
+    noStroke();
+    textFont(mediumFont);
+    textAlign(RIGHT);
+    text("Size / Rot", padX + padSize - 6, padY + 20);
+
+    // Hint
+    fill(120);
+    textFont(smallFont);
+    textAlign(LEFT);
+    text("Double-click to submit trial", padX, padY + padSize + 16);
   }
-
-  noStroke();
-  rect(submitButtonX, submitButtonY, submitButtonWidth, submitButtonHeight, 8);
-
-  fill(255);
-  textAlign(CENTER);
-  textFont(mediumFont);
-  text("SUBMIT", submitButtonX + submitButtonWidth/2, submitButtonY + submitButtonHeight/2 + 8);
 
   rectMode(CENTER);
   textAlign(CENTER);
@@ -414,19 +444,62 @@ void mousePressed()
     println("time started!");
   }
 
-  if (coordinateGridControl) {
-    // Pad 1: X / Y
-    if (mouseX >= pad1X && mouseX <= pad1X + padSize &&
-      mouseY >= pad1Y && mouseY <= pad1Y + padSize) {
-      logoX = minX + (maxX - minX) * ((mouseX - pad1X) / padSize);
-      logoY = minY + (maxY - minY) * ((mouseY - pad1Y) / padSize);
-    }
+  if (scrollWheelControl) {
+    boolean clickedInPad = mouseX >= padX && mouseX <= padX + padSize &&
+      mouseY >= padY && mouseY <= padY + padSize;
 
-    // Pad 2: Size / Rotation
-    if (mouseX >= pad2X && mouseX <= pad2X + padSize &&
-      mouseY >= pad2Y && mouseY <= pad2Y + padSize) {
-      logoS = constrain(minZ + (maxZ - minZ) * ((mouseX - pad2X) / padSize), minZ, maxZ);
-      logoR = minR + (maxR - minR) * ((mouseY - pad2Y) / padSize);
+    if (clickedInPad) {
+      float usablePadSize = padSize - padInnerPadding * 2;
+      float mx = constrain(mouseX, padX + padInnerPadding, padX + padSize - padInnerPadding);
+      float my = constrain(mouseY, padY + padInnerPadding, padY + padSize - padInnerPadding);
+      float nx = (mx - (padX + padInnerPadding)) / usablePadSize;
+      float ny = (my - (padY + padInnerPadding)) / usablePadSize;
+
+      int now = millis();
+      boolean isDoubleClick = (now - lastClickTime) < doubleClickThreshold;
+
+      if (padPhase == 0) {
+        // Set X/Y
+        logoX = minX + (maxX - minX) * nx;
+        logoY = minY + (maxY - minY) * ny;
+
+        if (isDoubleClick) {
+          // Confirm X/Y, move to Z/R phase
+          padPhase = 1;
+          lastClickTime = 0;
+        } else {
+          lastClickTime = now;
+        }
+      } else {
+        // Set Z/R
+        logoS = constrain(minZ + (maxZ - minZ) * nx, minZ, maxZ);
+        logoR = minR + (maxR - minR) * ny;
+
+        if (isDoubleClick) {
+          // Submit trial
+          if (userDone == false && !checkForSuccess())
+            errorCount++;
+
+          trialIndex++;
+
+          if (resetSquareAfterSubmission) {
+            logoX = originalLogoX;
+            logoY = originalLogoY;
+            logoS = originalLogoS;
+            logoR = originalLogoR;
+          }
+
+          padPhase = 0;
+          lastClickTime = 0;
+
+          if (trialIndex == trialCount && userDone == false) {
+            userDone = true;
+            finishTime = millis();
+          }
+        } else {
+          lastClickTime = now;
+        }
+      }
     }
   }
 
@@ -446,31 +519,8 @@ void mousePressed()
 
 void mouseReleased()
 {
-  // Check if user clicked the submit button
-  if (coordinateGridControl && mouseX >= submitButtonX && mouseX <= submitButtonX + submitButtonWidth &&
-    mouseY >= submitButtonY && mouseY <= submitButtonY + submitButtonHeight)
-  {
-    if (userDone==false && !checkForSuccess())
-      errorCount++;
-
-    trialIndex++; //and move on to next trial
-
-    if (resetSquareAfterSubmission) {
-      logoX = originalLogoX;
-      logoY = originalLogoY;
-      logoS = originalLogoS;
-      logoR = originalLogoR;
-    }
-
-    if (trialIndex==trialCount && userDone==false)
-    {
-      userDone = true;
-      finishTime = millis();
-    }
-  }
-
-  // Also check for original submit button (center of screen)
-  if (!coordinateGridControl && dist(width/2, height/2, mouseX, mouseY)<inchToPix(1f))
+  // Keep original submit button for non-scrollwheel mode
+  if (!scrollWheelControl && dist(width/2, height/2, mouseX, mouseY)<inchToPix(1f))
   {
     if (userDone==false && !checkForSuccess())
       errorCount++;
