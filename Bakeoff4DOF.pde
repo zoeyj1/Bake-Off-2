@@ -15,7 +15,7 @@ boolean blueSelectionBorder = true;
 boolean blueResizingSquares = true;
 boolean pointToDestination = false;
 boolean greenSuccessVisual = true;
-boolean submitWhenCorrect = true;
+boolean newSubmit = true;
 boolean isDragging = true;
 int draggingCorner = -1;
 
@@ -83,8 +83,8 @@ void draw() {
   noStroke();
   
   //next two lines are just for testing if your PPI is set correctly. It should be 1x1" on your screen if correct. This can be removed for the Bakeoff.
-  fill(200,200,200);
-  rect(width/2,height/2, inchToPix(1f), inchToPix(1f)); 
+  //fill(100,200,200);
+  //rect(width/2,height/2, inchToPix(1f), inchToPix(1f)); 
   
   fill(200);
   textFont(largeFont);
@@ -182,8 +182,11 @@ void scaffoldControlLogic()
   }
   
   if (followingMouse && blueSelectionBorder == true) {
-    logoX = mouseX;
-    logoY = mouseY;
+    float offsetX = halfSize * cos(angleRad - 3*PI/4) * sqrt(2);
+    float offsetY = halfSize * sin(angleRad - 3*PI/4) * sqrt(2);
+    
+    logoX = mouseX - offsetX;
+    logoY = mouseY - offsetY;
   }
   
   //if (pointToDestination) { // not working
@@ -241,37 +244,91 @@ void scaffoldControlLogic()
     if (mousePressed && dist(width/2, height, mouseX, mouseY)<inchToPix(.8f))
       logoY+=inchToPix(.02f);
   }
-  if (submitWhenCorrect) {
-    if (checkForSuccess() && mousePressed == false) {
-      if (userDone==false && !checkForSuccess())
-        errorCount++;
+  //if (newSubmit) {
+  //  // done when not selected, blue resizing squares on, and click outside
+  //  if (mousePressed && blueSelectionBorder == false 
+  //      && blueResizingSquares && isDragging == false 
+  //      && (d.y-d.s/2 < mouseY && mouseY < d.y+d.s/2)) {
+  //    if (userDone==false && !checkForSuccess())
+  //      errorCount++;
   
-      trialIndex++; //and move on to next trial
+  //    trialIndex++; //and move on to next trial
   
-      if (trialIndex==trialCount && userDone==false)
-      {
-        userDone = true;
-        finishTime = millis();
-      }
-    }
-  }
+  //    if (trialIndex==trialCount && userDone==false)
+  //    {
+  //      userDone = true;
+  //      finishTime = millis();
+  //    }
+  //  }
+  //}
 }
  
 void mouseDragged() 
-  {
+{
   if (trialIndex >= destinations.size()) return;
   if (blueResizingSquares && isDragging && draggingCorner >= 0) {
-    float centerX = logoX;
-    float centerY = logoY;
-    float newSize = dist(mouseX, mouseY, centerX, centerY) * sqrt(2);
-    logoS = newSize;
     
-    double dx = mouseX - logoX;
-    double dy = mouseY - logoY;
-    float mouseAngle = (float) Math.toDegrees(Math.atan2(dy, dx));
-    logoR = mouseAngle + 45;
+    float angleRad = radians(logoR);
+    float halfSize = logoS/2;
+    if (draggingCorner == 3) 
+    {
+      float tlX = logoX + halfSize * cos(angleRad - 3*PI/4) * sqrt(2); 
+      float tlY = logoY + halfSize * sin(angleRad - 3*PI/4) * sqrt(2);
+      float newSize = dist(mouseX, mouseY, tlX, tlY) / sqrt(2);
+      logoS = newSize;
+      logoX = (tlX + mouseX) / 2; //midpoint between TL and BR  
+      logoY = (tlY + mouseY) / 2;
+      
+      double dx = mouseX - tlX;
+      double dy = mouseY - tlY;
+      float mouseAngle = (float) Math.toDegrees(Math.atan2(dy, dx));
+      logoR = mouseAngle - 45; 
+    }
+    else if (draggingCorner == 0) // top left, keep br corner the same
+    {
+      // find the opposite corner, calculate new size from mouse position and opposite corner
+      // calculate new center position as the midpoint
+      float brX = logoX + halfSize * cos(angleRad + PI/4) * sqrt(2);
+      float brY = logoY + halfSize * sin(angleRad + PI/4) * sqrt(2);
+      float newSize = dist(mouseX, mouseY, brX, brY) / sqrt(2);
+      logoS = newSize;
+      logoX = (brX + mouseX) / 2;
+      logoY = (brY + mouseY) / 2;
+      
+      double dx = mouseX - brX;
+      double dy = mouseY - brY;
+      float mouseAngle = (float) Math.toDegrees(Math.atan2(dy, dx));
+      logoR = mouseAngle + 135; 
+    } else if (draggingCorner == 1) // top right 
+    {
+      float blX = logoX + halfSize * cos(angleRad + 3*PI/4) * sqrt(2);
+      float blY = logoY + halfSize * sin(angleRad + 3*PI/4) * sqrt(2);
+      float newSize = dist(mouseX, mouseY, blX, blY) / sqrt(2);
+      logoS = newSize;
+      logoX = (blX + mouseX) / 2;
+      logoY = (blY + mouseY) / 2;
+      
+      double dx = mouseX - blX;
+      double dy = mouseY - blY;
+      float mouseAngle = (float) Math.toDegrees(Math.atan2(dy, dx));
+      logoR = mouseAngle + 45; 
+    } else if (draggingCorner == 2) // top right 
+    {
+      float trX = logoX + halfSize * cos(angleRad - PI/4) * sqrt(2);
+      float trY = logoY + halfSize * sin(angleRad - PI/4) * sqrt(2);
+      float newSize = dist(mouseX, mouseY, trX, trY) / sqrt(2);
+      logoS = newSize;
+      logoX = (trX + mouseX) / 2;
+      logoY = (trY + mouseY) / 2;
+      
+      double dx = mouseX - trX;
+      double dy = mouseY - trY;
+      float mouseAngle = (float) Math.toDegrees(Math.atan2(dy, dx));
+      logoR = mouseAngle - 135; 
+    }
   }
 }
+
 
 void mousePressed()
 {
@@ -283,17 +340,43 @@ void mousePressed()
     println("time started!");
   }
   
+  float DangleRad = radians(d.r);
+  float DhalfSize = d.s/2; 
+  float DtrX = d.x + DhalfSize * cos(DangleRad - PI/4) * sqrt(2);
+  float DtrY = d.y + DhalfSize * sin(DangleRad - PI/4) * sqrt(2);
+  float DtlX = d.x + DhalfSize * cos(DangleRad - 3*PI/4) * sqrt(2);
+  float DtlY = d.y + DhalfSize * sin(DangleRad - 3*PI/4) * sqrt(2);
+  float DbrX = d.x + DhalfSize * cos(DangleRad + PI/4) * sqrt(2);
+  float DbrY = d.y + DhalfSize * sin(DangleRad + PI/4) * sqrt(2);
+  float DblX = d.x + DhalfSize * cos(DangleRad + 3*PI/4) * sqrt(2);
+  float DblY = d.y + DhalfSize * sin(DangleRad + 3*PI/4) * sqrt(2);
+  
+  
   if (blueSelectionBorder == true) {
-    if (d.x-d.s/2 < mouseX && mouseX < d.x+d.s/2
-      && d.y-d.s/2 < mouseY && mouseY < d.y+d.s/2) // we are clicking in bounds of destination sq
+    if ((dist(DtrX, DtrY, mouseX, mouseY) < 10) 
+       || (dist(DtlX, DtlY, mouseX, mouseY) < 10) 
+       || (dist(DbrX, DbrY, mouseX, mouseY) < 10) 
+       || (dist(DblX, DblY, mouseX, mouseY) < 10) )    
+    // we are clicking any of the four corners of the destination square
     {
       blueSelectionBorder = false;
       return;
     }
   } else {
-    if (logoX-logoS/2+3 < mouseX && mouseX < logoX+logoS/2-3 
-        && logoY-logoS/2+3 < mouseY && mouseY < logoY+logoS/2-3) {
+    float angleRad = radians(logoR); // radius of logo
+    float relativeX = mouseX - logoX; // distance from mouse to logoX
+    float relativeY = mouseY - logoY;
+    float localX = relativeX * cos(-angleRad) - relativeY * sin(-angleRad);
+    float localY = relativeX * sin(-angleRad) + relativeY * cos(-angleRad);
+    
+    if (abs(localX) < logoS/2-4 && abs(localY) < logoS/2-4 && isDragging == false) 
+    {
       blueSelectionBorder = true;
+      float halfSize = logoS/2;
+      float tlX = logoX + halfSize * cos(angleRad - 3*PI/4) * sqrt(2);
+      float tlY = logoY + halfSize * sin(angleRad - 3*PI/4) * sqrt(2);
+      logoX = tlX;
+      logoY = tlY;
       return;
     }
   }
@@ -329,8 +412,23 @@ void mousePressed()
     }
   }
   
-
-  
+  if (newSubmit) {
+    if (blueSelectionBorder == false && 
+      !(logoX-logoS/2 < mouseX && mouseX < logoX+logoS/2 && 
+        logoY-logoS/2 < mouseY && mouseY < logoY+logoS/2)) {
+      // if logo not selected, mouse is within bounds of logo square
+      
+      if (userDone==false && !checkForSuccess())
+        errorCount++;
+      
+      trialIndex++;
+      
+      if (trialIndex==trialCount && userDone==false) {
+        userDone = true;
+        finishTime = millis();
+      }
+    }
+  }  
 }
 
 void mouseReleased()
@@ -339,7 +437,7 @@ void mouseReleased()
   isDragging = false;
   draggingCorner = -1;
   
-  Destination d = destinations.get(trialIndex);  
+  
   
   if (originalSubmit) {
     //check to see if user clicked middle of screen within 1 inches, which this code uses as a submit button. This is a terrible design you should probably replace.
