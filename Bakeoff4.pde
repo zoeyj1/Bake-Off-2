@@ -12,9 +12,7 @@ boolean followingMouse = false;
 boolean blueSelectionBorder = false;
 boolean blueResizingSquares = false;
 boolean centerConnection = false;
-
-//New Features - Iteration 2
-boolean scrollWheelControl = true;
+boolean coordinateGridControl = true;
 boolean resetSquareAfterSubmission = true;
 
 int trialCount = 10; //this will be set higher for the bakeoff
@@ -42,18 +40,18 @@ float originalLogoY = 500;
 float originalLogoS = 50f;
 float originalLogoR = 0;
 
-// Scroll wheel positions and dimensions
-float scrollWheelStartY = 20;
-float scrollWheelSpacing = 50;
-float scrollWheelWidth = 300;
-float scrollWheelHeight = 35;
-float scrollWheelX = 20;
+// Two square pads stacked vertically
+float padSize = 250;
+float pad1X = 20;
+float pad1Y = 10;
+float pad2X = 20;
+float pad2Y = 270;
 
 // Submit button dimensions
-float submitButtonWidth = 150;
-float submitButtonHeight = 40;
-float submitButtonX = scrollWheelX + scrollWheelWidth + 30;
-float submitButtonY = scrollWheelStartY + (scrollWheelSpacing * 1.5f);
+float submitButtonWidth = 130;
+float submitButtonHeight = 80;
+float submitButtonX;
+float submitButtonY;
 
 // Min and max values for each axis
 float minX, maxX, minY, maxY;
@@ -94,6 +92,10 @@ void setup() {
   maxX = width - windowPadding;
   minY = windowPadding;
   maxY = height - windowPadding;
+
+  // Submit button to the right, vertically centered between two pads
+  submitButtonX = pad1X + padSize + 20;
+  submitButtonY = pad1Y + (pad2Y + padSize - pad1Y) / 2 - submitButtonHeight / 2;
 
   //create a bunch of random destination squares. Don't change this!
   for (int i=0; i<trialCount; i++)
@@ -167,59 +169,6 @@ void draw() {
   fill(255);
   textFont(largeFont);
   text("Trial " + (trialIndex+1) + " of " +trialCount, width/2, height - inchToPix(.5f));
-}
-
-// Helper function to draw a progress bar style slider
-void drawSlider(String label, float currentValue, float targetValue, float minValue, float maxValue, float yPos) {
-  rectMode(CORNER);
-  textAlign(LEFT);
-
-  // Calculate fill percentage for current value
-  float currentPercent = (currentValue - minValue) / (maxValue - minValue);
-  float targetPercent = (targetValue - minValue) / (maxValue - minValue);
-
-  // Draw background (empty part)
-  fill(60, 60, 60);
-  noStroke();
-  rect(scrollWheelX, yPos, scrollWheelWidth, scrollWheelHeight, 5);
-
-  // Draw filled part (blue progress bar)
-  fill(80, 120, 200);
-  rect(scrollWheelX, yPos, scrollWheelWidth * currentPercent, scrollWheelHeight, 5);
-
-  // Draw target indicator (red line)
-  stroke(255, 0, 0);
-  strokeWeight(3);
-  float targetX = scrollWheelX + scrollWheelWidth * targetPercent;
-  line(targetX, yPos, targetX, yPos + scrollWheelHeight);
-
-  // Draw label and current value
-  fill(255);
-  noStroke();
-  textFont(smallFont);
-  text(label + ": " + nf(currentValue, 0, 1), scrollWheelX + 5, yPos + 23);
-
-  // Check if current value is close enough to target
-  boolean isClose = false;
-  if (label.equals("X") || label.equals("Y")) {
-    isClose = abs(currentValue - targetValue) < inchToPix(.03f);
-  } else if (label.equals("Z")) {
-    isClose = abs(currentValue - targetValue) < inchToPix(.06f);
-  } else if (label.equals("R")) {
-    isClose = calculateDifferenceBetweenAngles(currentValue, targetValue) <= 3;
-  }
-
-  // Draw target value on the right - green if close, red if not
-  if (isClose) {
-    fill(0, 255, 0);
-  } else {
-    fill(255, 0, 0);
-  }
-  textAlign(RIGHT);
-  text("Target: " + nf(targetValue, 0, 1), scrollWheelX + scrollWheelWidth - 5, yPos + 23);
-
-  rectMode(CENTER);
-  textAlign(CENTER);
 }
 
 // Helper function to check if we're close enough to submit
@@ -313,48 +262,147 @@ void scaffoldControlLogic()
       logoY+=inchToPix(.02f);
   }
 
-  // Draw scroll wheels as progress bars
-  if (scrollWheelControl) {
-    float xScrollY = scrollWheelStartY;
-    float yScrollY = scrollWheelStartY + scrollWheelSpacing;
-    float zScrollY = scrollWheelStartY + scrollWheelSpacing * 2;
-    float rScrollY = scrollWheelStartY + scrollWheelSpacing * 3;
-
-    drawSlider("X", logoX, d.x, minX, maxX, xScrollY);
-    drawSlider("Y", logoY, d.y, minY, maxY, yScrollY);
-    drawSlider("Z", logoS, d.s, minZ, maxZ, zScrollY);
-    drawSlider("R", logoR, d.r, minR, maxR, rScrollY);
-
-    // Draw submit button - green if ready, red if not
-    rectMode(CORNER);
-    boolean ready = isReadyToSubmit();
-    boolean hovering = mouseX >= submitButtonX && mouseX <= submitButtonX + submitButtonWidth &&
-      mouseY >= submitButtonY && mouseY <= submitButtonY + submitButtonHeight;
-
-    if (ready) {
-      if (hovering) {
-        fill(0, 255, 0, 220);
-      } else {
-        fill(0, 200, 0, 200);
-      }
-    } else {
-      if (hovering) {
-        fill(255, 0, 0, 220);
-      } else {
-        fill(200, 0, 0, 200);
-      }
-    }
-
-    noStroke();
-    rect(submitButtonX, submitButtonY, submitButtonWidth, submitButtonHeight, 8);
-
-    fill(255);
-    textAlign(CENTER);
-    textFont(mediumFont);
-    text("SUBMIT", submitButtonX + submitButtonWidth/2, submitButtonY + submitButtonHeight/2 + 8);
-
-    rectMode(CENTER);
+  // Draw the two 2D pads
+  if (coordinateGridControl) {
+    drawPads();
   }
+}
+
+void drawPads() {
+  Destination d = destinations.get(trialIndex);
+  rectMode(CORNER);
+
+  // Check closeness for each axis
+  boolean xClose = abs(logoX - d.x) < inchToPix(.05f);
+  boolean yClose = abs(logoY - d.y) < inchToPix(.05f);
+  boolean xyClose = xClose && yClose;
+  boolean zClose = abs(logoS - d.s) < inchToPix(.1f);
+  boolean rClose = calculateDifferenceBetweenAngles(logoR, d.r) <= 5;
+  boolean zrClose = zClose && rClose;
+
+  //Pad 1: X (horizontal) / Y (vertical)
+  fill(55);
+  noStroke();
+  rect(pad1X, pad1Y, padSize, padSize, 4);
+
+  // Target position in pad coordinates
+  float targetPx1 = pad1X + padSize * ((d.x - minX) / (maxX - minX));
+  float targetPy1 = pad1Y + padSize * ((d.y - minY) / (maxY - minY));
+
+  // Tolerance in pad pixels
+  float tolX = padSize * (inchToPix(.05f) / (maxX - minX));
+  float tolY = padSize * (inchToPix(.05f) / (maxY - minY));
+
+  // Pick color based on closeness
+  color pad1Color = xyClose ? color(0, 255, 0) : color(255, 0, 0);
+
+  // Guide lines
+  stroke(red(pad1Color), green(pad1Color), blue(pad1Color), 60);
+  strokeWeight(1);
+  line(pad1X, targetPy1, pad1X + padSize, targetPy1);
+  line(targetPx1, pad1Y, targetPx1, pad1Y + padSize);
+
+  // Tolerance zone fill
+  noStroke();
+  fill(red(pad1Color), green(pad1Color), blue(pad1Color), 40);
+  rect(targetPx1 - tolX, targetPy1 - tolY, tolX * 2, tolY * 2);
+
+  // Tolerance zone border
+  stroke(red(pad1Color), green(pad1Color), blue(pad1Color), 150);
+  strokeWeight(2);
+  noFill();
+  rect(targetPx1 - tolX, targetPy1 - tolY, tolX * 2, tolY * 2);
+
+  // Current position - blue with white ring
+  float curPx1 = pad1X + padSize * ((logoX - minX) / (maxX - minX));
+  float curPy1 = pad1Y + padSize * ((logoY - minY) / (maxY - minY));
+  noStroke();
+  fill(80, 80, 255);
+  ellipse(curPx1, curPy1, 12, 12);
+  stroke(255);
+  strokeWeight(2);
+  noFill();
+  ellipse(curPx1, curPy1, 12, 12);
+
+  // Label
+  fill(100);
+  noStroke();
+  textFont(smallFont);
+  textAlign(RIGHT);
+  text("X / Y", pad1X + padSize - 4, pad1Y + 14);
+
+  //Pad 2: Size (horizontal) / Rotation (vertical)
+  fill(55);
+  noStroke();
+  rect(pad2X, pad2Y, padSize, padSize, 4);
+
+  // Target position in pad coordinates
+  float targetPx2 = pad2X + padSize * ((d.s - minZ) / (maxZ - minZ));
+  float targetPy2 = pad2Y + padSize * ((d.r - minR) / (maxR - minR));
+
+  // Tolerance in pad pixels
+  float tolZ = padSize * (inchToPix(.1f) / (maxZ - minZ));
+  float tolR = padSize * (5.0f / (maxR - minR));
+
+  // Pick color based on closeness
+  color pad2Color = zrClose ? color(0, 255, 0) : color(255, 0, 0);
+
+  // Guide lines
+  stroke(red(pad2Color), green(pad2Color), blue(pad2Color), 60);
+  strokeWeight(1);
+  line(pad2X, targetPy2, pad2X + padSize, targetPy2);
+  line(targetPx2, pad2Y, targetPx2, pad2Y + padSize);
+
+  // Tolerance zone fill
+  noStroke();
+  fill(red(pad2Color), green(pad2Color), blue(pad2Color), 40);
+  rect(targetPx2 - tolZ, targetPy2 - tolR, tolZ * 2, tolR * 2);
+
+  // Tolerance zone border
+  stroke(red(pad2Color), green(pad2Color), blue(pad2Color), 150);
+  strokeWeight(2);
+  noFill();
+  rect(targetPx2 - tolZ, targetPy2 - tolR, tolZ * 2, tolR * 2);
+
+  // Current position
+  float curPx2 = pad2X + padSize * ((logoS - minZ) / (maxZ - minZ));
+  float curPy2 = pad2Y + padSize * ((logoR - minR) / (maxR - minR));
+  noStroke();
+  fill(80, 80, 255);
+  ellipse(curPx2, curPy2, 12, 12);
+  stroke(255);
+  strokeWeight(2);
+  noFill();
+  ellipse(curPx2, curPy2, 12, 12);
+
+  // Label
+  fill(100);
+  noStroke();
+  textFont(smallFont);
+  textAlign(RIGHT);
+  text("Size / Rot", pad2X + padSize - 4, pad2Y + 14);
+
+  //Submit Button
+  boolean ready = isReadyToSubmit();
+  boolean hovering = mouseX >= submitButtonX && mouseX <= submitButtonX + submitButtonWidth &&
+    mouseY >= submitButtonY && mouseY <= submitButtonY + submitButtonHeight;
+
+  if (ready) {
+    fill(hovering ? color(0, 255, 0, 220) : color(0, 200, 0, 200));
+  } else {
+    fill(hovering ? color(255, 0, 0, 220) : color(200, 0, 0, 200));
+  }
+
+  noStroke();
+  rect(submitButtonX, submitButtonY, submitButtonWidth, submitButtonHeight, 8);
+
+  fill(255);
+  textAlign(CENTER);
+  textFont(mediumFont);
+  text("SUBMIT", submitButtonX + submitButtonWidth/2, submitButtonY + submitButtonHeight/2 + 8);
+
+  rectMode(CENTER);
+  textAlign(CENTER);
 }
 
 void mousePressed()
@@ -366,25 +414,19 @@ void mousePressed()
     println("time started!");
   }
 
-  // Check if clicking on scroll wheels - click to set value directly
-  if (scrollWheelControl) {
-    float xScrollY = scrollWheelStartY;
-    float yScrollY = scrollWheelStartY + scrollWheelSpacing;
-    float zScrollY = scrollWheelStartY + scrollWheelSpacing * 2;
-    float rScrollY = scrollWheelStartY + scrollWheelSpacing * 3;
+  if (coordinateGridControl) {
+    // Pad 1: X / Y
+    if (mouseX >= pad1X && mouseX <= pad1X + padSize &&
+      mouseY >= pad1Y && mouseY <= pad1Y + padSize) {
+      logoX = minX + (maxX - minX) * ((mouseX - pad1X) / padSize);
+      logoY = minY + (maxY - minY) * ((mouseY - pad1Y) / padSize);
+    }
 
-    if (mouseX >= scrollWheelX && mouseX <= scrollWheelX + scrollWheelWidth) {
-      float clickPercent = (mouseX - scrollWheelX) / scrollWheelWidth;
-
-      if (mouseY >= xScrollY && mouseY <= xScrollY + scrollWheelHeight) {
-        logoX = minX + (maxX - minX) * clickPercent;
-      } else if (mouseY >= yScrollY && mouseY <= yScrollY + scrollWheelHeight) {
-        logoY = minY + (maxY - minY) * clickPercent;
-      } else if (mouseY >= zScrollY && mouseY <= zScrollY + scrollWheelHeight) {
-        logoS = constrain(minZ + (maxZ - minZ) * clickPercent, minZ, maxZ);
-      } else if (mouseY >= rScrollY && mouseY <= rScrollY + scrollWheelHeight) {
-        logoR = minR + (maxR - minR) * clickPercent;
-      }
+    // Pad 2: Size / Rotation
+    if (mouseX >= pad2X && mouseX <= pad2X + padSize &&
+      mouseY >= pad2Y && mouseY <= pad2Y + padSize) {
+      logoS = constrain(minZ + (maxZ - minZ) * ((mouseX - pad2X) / padSize), minZ, maxZ);
+      logoR = minR + (maxR - minR) * ((mouseY - pad2Y) / padSize);
     }
   }
 
@@ -405,7 +447,7 @@ void mousePressed()
 void mouseReleased()
 {
   // Check if user clicked the submit button
-  if (scrollWheelControl && mouseX >= submitButtonX && mouseX <= submitButtonX + submitButtonWidth &&
+  if (coordinateGridControl && mouseX >= submitButtonX && mouseX <= submitButtonX + submitButtonWidth &&
     mouseY >= submitButtonY && mouseY <= submitButtonY + submitButtonHeight)
   {
     if (userDone==false && !checkForSuccess())
@@ -428,7 +470,7 @@ void mouseReleased()
   }
 
   // Also check for original submit button (center of screen)
-  if (!scrollWheelControl && dist(width/2, height/2, mouseX, mouseY)<inchToPix(1f))
+  if (!coordinateGridControl && dist(width/2, height/2, mouseX, mouseY)<inchToPix(1f))
   {
     if (userDone==false && !checkForSuccess())
       errorCount++;
