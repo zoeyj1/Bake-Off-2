@@ -12,13 +12,14 @@ boolean followingMouse = false;
 boolean blueSelectionBorder = false;
 boolean blueResizingSquares = false;
 boolean centerConnection = false;
-boolean scrollWheelControl = true;
+boolean coordinateGridControl = true;
 boolean resetSquareAfterSubmission = true;
 boolean doubleClickToContinue = true;
+boolean greenSuccessVisual = true;
 
 
 int trialCount = 10; //this will be set higher for the bakeoff
-final float screenPPI = 126;//what is the Pixels Per Inch of the screen you are using
+final float screenPPI = 127;//what is the Pixels Per Inch of the screen you are using
 
 //these are variables you should probably leave alone
 int index = 0; //starts at zero-ith trial
@@ -43,7 +44,7 @@ float originalLogoS = 50f;
 float originalLogoR = 0;
 
 // Single pad that switches between XY and ZR
-float padSize = 700;
+float padSize = 500;
 float padX = 20;
 float padY = 10;
 
@@ -112,7 +113,7 @@ void setup() {
   Collections.shuffle(destinations); // randomize the order of the button; don't change this.
 }
 
-void draw() {
+void draw() { 
   background(40); //background is dark grey. Can't change this.
   noStroke();
 
@@ -154,7 +155,15 @@ void draw() {
   translate(logoX, logoY); //translate draw center to the center oft he logo square
   rotate(radians(logoR)); //rotate using the logo square as the origin
   noStroke();
-  fill(60, 60, 192, 192);
+  if (greenSuccessVisual) {
+    if (checkForSuccess()) {
+      fill(0, 153, 0, 192);
+    } else {
+      fill(60, 60, 192, 192);
+    }
+  } else {
+    fill(60, 60, 192, 192);
+  }
   rect(0, 0, logoS, logoS);
   fill(255);
   textFont(smallFont);
@@ -263,7 +272,7 @@ void scaffoldControlLogic()
   }
 
   // Draw the pad
-  if (scrollWheelControl) {
+  if (coordinateGridControl) {
     drawPad();
   }
 }
@@ -356,7 +365,7 @@ void drawPad() {
     text("Double-click to confirm", padX, padY + padSize + 16);
 
   } else {
-    // === Z/R MODE ===
+    // Z/R MODE
     boolean zClose = abs(logoS - d.s) < inchToPix(.1f);
     boolean rClose = calculateDifferenceBetweenAngles(logoR, d.r) <= 5;
     boolean bothClose = zClose && rClose;
@@ -365,7 +374,7 @@ void drawPad() {
     float targetPx = leftEdge + usablePadSize * ((d.s - minZ) / (maxZ - minZ));
     float targetPy = topEdge + usablePadSize * ((d.r - minR) / (maxR - minR));
 
-    // === Shadow of next iteration's (X / Y) in gray ===
+    // Shadow of next iteration's (X / Y) in gray
     if (trialIndex + 1 < trialCount) {
       Destination nextD = destinations.get(trialIndex + 1);
 
@@ -444,7 +453,7 @@ void mousePressed()
     println("time started!");
   }
 
-  if (scrollWheelControl) {
+  if (coordinateGridControl) {
     boolean clickedInPad = mouseX >= padX && mouseX <= padX + padSize &&
       mouseY >= padY && mouseY <= padY + padSize;
 
@@ -520,7 +529,7 @@ void mousePressed()
 void mouseReleased()
 {
   // Keep original submit button for non-scrollwheel mode
-  if (!scrollWheelControl && dist(width/2, height/2, mouseX, mouseY)<inchToPix(1f))
+  if (!coordinateGridControl && dist(width/2, height/2, mouseX, mouseY)<inchToPix(1f))
   {
     if (userDone==false && !checkForSuccess())
       errorCount++;
